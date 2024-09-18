@@ -1,9 +1,79 @@
+import datetime
+from django.http import HttpResponseRedirect
+from django.urls import reverse
 from django.shortcuts import render
 from django.shortcuts import render, redirect   # Tambahkan import redirect di baris ini
 from main.forms import MoodEntryForm
 from main.models import MoodEntry
 from django.http import HttpResponse
 from django.core import serializers
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib import messages
+from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
+from django.contrib.auth import authenticate, login
+from django.contrib.auth import logout
+from django.contrib.auth.decorators import login_required
+
+@login_required(login_url='/login')
+def show_main(request):
+    mood_entries = MoodEntry.objects.all()
+
+    context = {
+        'name': request.user.username,
+        'class': 'PBP C',
+        'npm': '2306226731',
+        'mood_entries': mood_entries,
+        'last_login': request.COOKIES['last_login'],
+    }
+
+    return render(request, "main.html", context)
+
+def create_mood_entry(request):
+    form = MoodEntryForm(request.POST or None)
+
+    if form.is_valid() and request.method == "POST":
+        mood_entry = form.save(commit=False)
+        mood_entry.user = request.user
+        mood_entry.save()
+        return redirect('main:show_main')
+
+    context = {'form': form}
+    return render(request, "create_mood_entry.html", context)
+
+
+def register(request):
+    form = UserCreationForm()
+
+    if request.method == "POST":
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Your account has been successfully created!')
+            return redirect('main:login')
+    context = {'form':form}
+    return render(request, 'register.html', context)
+
+def login_user(request):
+   if request.method == 'POST':
+      form = AuthenticationForm(data=request.POST)
+
+      if form.is_valid():
+            user = form.get_user()
+            login(request, user)
+            response = HttpResponseRedirect(reverse("main:show_main"))
+            response.set_cookie('last_login', str(datetime.datetime.now()))
+            return response
+
+   else:
+      form = AuthenticationForm(request)
+   context = {'form': form}
+   return render(request, 'login.html', context)
+
+def logout_user(request):
+    logout(request)
+    response = HttpResponseRedirect(reverse('main:login'))
+    response.delete_cookie('last_login')
+    return response
 
 def show_xml_by_id(request, id):
     data = MoodEntry.objects.filter(pk=id)
@@ -20,25 +90,3 @@ def show_json(request):
 def show_xml(request):
     data = MoodEntry.objects.all()
     return HttpResponse(serializers.serialize("xml", data), content_type="application/xml")
-
-def create_mood_entry(request):
-    form = MoodEntryForm(request.POST or None)
-
-    if form.is_valid() and request.method == "POST":
-        form.save()
-        return redirect('main:show_main')
-
-    context = {'form': form}
-    return render(request, "create_mood_entry.html", context)
-
-def show_main(request):
-    mood_entries = MoodEntry.objects.all()
-
-    context = {
-        'name': 'Pak Bepe',
-        'class': 'PBP D',
-        'npm': '2306123456',
-        'mood_entries': mood_entries
-    }
-
-    return render(request, "main.html", context)
